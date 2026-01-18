@@ -858,15 +858,27 @@
 			);
 		}
 
-		if (isUsingBwa()) {
-			if (url.indexOf("account_email=") == -1) {
-				var email = Lampa.Storage.get("account_email", "");
-				if (email)
-					url = Lampa.Utils.addUrlComponent(
-						url,
-						"account_email=" + encodeURIComponent(email)
-					);
+		if (url.indexOf("account_email=") == -1) {
+			var email = Lampa.Storage.get("account_email", "");
+			if (email)
+				url = Lampa.Utils.addUrlComponent(
+					url,
+					"account_email=" + encodeURIComponent(email)
+				);
+		}
+
+		if (url.indexOf("cub_id=") == -1) {
+			var email = Lampa.Storage.get("account_email", "");
+			if (email) {
+				var cubId = Lampa.Utils.hash(email);
+				url = Lampa.Utils.addUrlComponent(
+					url,
+					"cub_id=" + encodeURIComponent(cubId)
+				);
 			}
+		}
+
+		if (isUsingBwa()) {
 			if (url.indexOf("token=") == -1) {
 				var bwaCode = getBwaCode();
 				if (bwaCode)
@@ -1644,11 +1656,55 @@
 		this.lifeSource = function () {
 			var _this3 = this;
 			return new Promise(function (resolve, reject) {
-				var url = _this3.requestParams(
-					Defined.getLocalhost() + "lifeevents?memkey=" + (_this3.memkey || "")
-				);
 				var resolved = false;
 				var stopped = false;
+
+				function buildLifeUrl() {
+					var query = [];
+					query.push("memkey=" + encodeURIComponent(_this3.memkey || ""));
+					var card_source = object.movie.source || "tmdb";
+					query.push("id=" + encodeURIComponent(object.movie.id));
+					if (object.movie.imdb_id)
+						query.push("imdb_id=" + (object.movie.imdb_id || ""));
+					if (object.movie.kinopoisk_id)
+						query.push("kinopoisk_id=" + (object.movie.kinopoisk_id || ""));
+					if (object.movie.tmdb_id)
+						query.push("tmdb_id=" + (object.movie.tmdb_id || ""));
+					query.push(
+						"title=" +
+							encodeURIComponent(
+								object.clarification
+									? object.search
+									: object.movie.title || object.movie.name
+							)
+					);
+					query.push(
+						"original_title=" +
+							encodeURIComponent(
+								object.movie.original_title || object.movie.original_name
+							)
+					);
+					query.push("serial=" + (object.movie.name ? 1 : 0));
+					query.push(
+						"original_language=" + (object.movie.original_language || "")
+					);
+					query.push(
+						"year=" +
+							(
+								(object.movie.release_date ||
+									object.movie.first_air_date ||
+									"0000") + ""
+							).slice(0, 4)
+					);
+					query.push("source=" + card_source);
+					query.push("clarification=" + (object.clarification ? 1 : 0));
+					query.push("similar=" + (object.similar ? true : false));
+					query.push("rchtype=" + NetworkManager.getRchType());
+
+					return buildUrl(
+						Defined.getLocalhost() + "lifeevents?" + query.join("&")
+					);
+				}
 
 				function delayNext() {
 					life_wait_timer = setTimeout(function () {
@@ -1687,6 +1743,7 @@
 				}
 
 				function poll() {
+					var url = buildLifeUrl();
 					NetworkManager.timeout(3000);
 					NetworkManager.silentPromise(url)
 						.then(function (json) {

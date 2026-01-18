@@ -11,7 +11,7 @@
 
 	var globalInfoCache = {};
 
-	blockShortsPlugin();
+	blockShotsPlugin();
 
 	addStyles();
 	initializeSettings();
@@ -1830,10 +1830,10 @@
 
 		Lampa.SettingsApi.addParam({
 			component: "style_interface",
-			param: { name: "disable_shorts_plugin", type: "trigger", default: false },
+			param: { name: "disable_shots_plugin", type: "trigger", default: false },
 			field: {
-				name: "Отключить Shorts",
-				description: "Блокирует загрузку плагина Shorts"
+				name: "Отключить Shots",
+				description: "Блокирует загрузку плагина Shots"
 			},
 			onChange: function () {
 				window.location.reload();
@@ -1878,8 +1878,8 @@
 		});
 	}
 
-	function blockShortsPlugin() {
-		if (Lampa.Storage.get("disable_shorts_plugin", false)) {
+	function blockShotsPlugin() {
+		if (Lampa.Storage.get("disable_shots_plugin", false)) {
 			var patterns = ["plugin/shots", "plugin/shorts"];
 
 			var isBlocked = function (url) {
