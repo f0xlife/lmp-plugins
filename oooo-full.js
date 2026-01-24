@@ -6,10 +6,87 @@
 	var STORAGE_KEY_ACTIVE_SERVER = "lamponline_active_server";
 	var STORAGE_KEY_SERVER_COUNTRIES = "lamponline_server_countries";
 	var STORAGE_KEY_SERVER_TOKENS = "lamponline_server_tokens";
+	var STORAGE_KEY_SERVER_UIDS = "lamponline_server_uids";
 	var BWA_HOST = "rc.bwa.to";
 
+	function persistentGet(key, defaultValue) {
+		try {
+			var value = localStorage.getItem(key);
+			if (value === null) return defaultValue;
+			return JSON.parse(value);
+		} catch (e) {
+			return defaultValue;
+		}
+	}
+
+	function persistentSet(key, value) {
+		try {
+			localStorage.setItem(key, JSON.stringify(value));
+		} catch (e) {}
+	}
+
+	var PERSISTENT_STORAGE_KEYS = [
+		STORAGE_KEY_SERVER,
+		STORAGE_KEY_SERVERS,
+		STORAGE_KEY_ACTIVE_SERVER,
+		STORAGE_KEY_SERVER_COUNTRIES,
+		STORAGE_KEY_SERVER_TOKENS,
+		STORAGE_KEY_SERVER_UIDS
+	];
+
+	function backupServerData() {
+		var backup = {};
+		PERSISTENT_STORAGE_KEYS.forEach(function (key) {
+			var value = localStorage.getItem(key);
+			if (value !== null) {
+				backup[key] = value;
+			}
+		});
+		return backup;
+	}
+
+	function restoreServerData(backup) {
+		if (!backup) return;
+		Object.keys(backup).forEach(function (key) {
+			localStorage.setItem(key, backup[key]);
+		});
+	}
+
+	function initClearProtection() {
+		if (
+			typeof Lampa === "undefined" ||
+			!Lampa.Storage ||
+			!Lampa.Storage.listener
+		)
+			return;
+		Lampa.Storage.listener.follow("clear", function (e) {
+			var backup = backupServerData();
+			setTimeout(function () {
+				restoreServerData(backup);
+			}, 0);
+		});
+	}
+
+	if (typeof Lampa !== "undefined" && Lampa.Storage && Lampa.Storage.listener) {
+		initClearProtection();
+	} else {
+		var checkInterval = setInterval(function () {
+			if (
+				typeof Lampa !== "undefined" &&
+				Lampa.Storage &&
+				Lampa.Storage.listener
+			) {
+				clearInterval(checkInterval);
+				initClearProtection();
+			}
+		}, 100);
+		setTimeout(function () {
+			clearInterval(checkInterval);
+		}, 10000);
+	}
+
 	function getServersList() {
-		var servers = Lampa.Storage.get(STORAGE_KEY_SERVERS, []);
+		var servers = persistentGet(STORAGE_KEY_SERVERS, []);
 		if (typeof servers === "string") {
 			try {
 				servers = JSON.parse(servers);
@@ -18,23 +95,23 @@
 			}
 		}
 		if (!Lampa.Arrays.isArray(servers)) servers = [];
-		var oldServer = Lampa.Storage.get(STORAGE_KEY_SERVER, "");
+		var oldServer = persistentGet(STORAGE_KEY_SERVER, "");
 		if (oldServer && servers.indexOf(oldServer) === -1) {
 			servers.push(oldServer);
-			Lampa.Storage.set(STORAGE_KEY_SERVERS, servers);
+			persistentSet(STORAGE_KEY_SERVERS, servers);
 		}
 		return servers;
 	}
 
 	function getActiveServerIndex() {
 		var servers = getServersList();
-		var active = parseInt(Lampa.Storage.get(STORAGE_KEY_ACTIVE_SERVER, 0)) || 0;
+		var active = parseInt(persistentGet(STORAGE_KEY_ACTIVE_SERVER, 0)) || 0;
 		if (active >= servers.length) active = 0;
 		return active;
 	}
 
 	function setActiveServerIndex(index) {
-		Lampa.Storage.set(STORAGE_KEY_ACTIVE_SERVER, index);
+		persistentSet(STORAGE_KEY_ACTIVE_SERVER, index);
 	}
 
 	function addServer(url) {
@@ -42,7 +119,7 @@
 		var servers = getServersList();
 		if (servers.indexOf(url) === -1) {
 			servers.push(url);
-			Lampa.Storage.set(STORAGE_KEY_SERVERS, servers);
+			persistentSet(STORAGE_KEY_SERVERS, servers);
 			return true;
 		}
 		return false;
@@ -53,10 +130,10 @@
 		if (index >= 0 && index < servers.length) {
 			var removedUrl = servers[index];
 			servers.splice(index, 1);
-			Lampa.Storage.set(STORAGE_KEY_SERVERS, servers);
-			var oldServer = Lampa.Storage.get(STORAGE_KEY_SERVER, "");
+			persistentSet(STORAGE_KEY_SERVERS, servers);
+			var oldServer = persistentGet(STORAGE_KEY_SERVER, "");
 			if (oldServer === removedUrl) {
-				Lampa.Storage.set(STORAGE_KEY_SERVER, "");
+				persistentSet(STORAGE_KEY_SERVER, "");
 			}
 			var active = getActiveServerIndex();
 			if (active >= servers.length) {
@@ -68,7 +145,7 @@
 	}
 
 	function getServerCountries() {
-		var countries = Lampa.Storage.get(STORAGE_KEY_SERVER_COUNTRIES, {});
+		var countries = persistentGet(STORAGE_KEY_SERVER_COUNTRIES, {});
 		if (typeof countries === "string") {
 			try {
 				countries = JSON.parse(countries);
@@ -87,7 +164,7 @@
 			.toLowerCase();
 		var countries = getServerCountries();
 		countries[normalized] = country;
-		Lampa.Storage.set(STORAGE_KEY_SERVER_COUNTRIES, countries);
+		persistentSet(STORAGE_KEY_SERVER_COUNTRIES, countries);
 	}
 
 	function getServerCountry(url) {
@@ -175,7 +252,7 @@
 	}
 
 	function getServerTokens() {
-		var tokens = Lampa.Storage.get(STORAGE_KEY_SERVER_TOKENS, "{}");
+		var tokens = persistentGet(STORAGE_KEY_SERVER_TOKENS, {});
 		if (typeof tokens === "string") {
 			try {
 				tokens = JSON.parse(tokens);
@@ -192,13 +269,14 @@
 	}
 
 	function setServerToken(serverUrl, token) {
+		if (!serverUrl) return;
 		var tokens = getServerTokens();
 		if (token) {
 			tokens[serverUrl] = token;
 		} else {
 			delete tokens[serverUrl];
 		}
-		Lampa.Storage.set(STORAGE_KEY_SERVER_TOKENS, tokens);
+		persistentSet(STORAGE_KEY_SERVER_TOKENS, tokens);
 	}
 
 	function getCurrentServerToken() {
@@ -208,6 +286,43 @@
 		var activeIndex = getActiveServerIndex();
 		var originalUrl = servers[activeIndex] || "";
 		return getServerToken(originalUrl);
+	}
+
+	function getServerUids() {
+		var uids = persistentGet(STORAGE_KEY_SERVER_UIDS, {});
+		if (typeof uids === "string") {
+			try {
+				uids = JSON.parse(uids);
+			} catch (e) {
+				uids = {};
+			}
+		}
+		return uids || {};
+	}
+
+	function getServerUid(serverUrl) {
+		var uids = getServerUids();
+		return uids[serverUrl] || "";
+	}
+
+	function setServerUid(serverUrl, uid) {
+		if (!serverUrl) return;
+		var uids = getServerUids();
+		if (uid) {
+			uids[serverUrl] = uid;
+		} else {
+			delete uids[serverUrl];
+		}
+		persistentSet(STORAGE_KEY_SERVER_UIDS, uids);
+	}
+
+	function getCurrentServerUid() {
+		var serverUrl = getServerUrl();
+		if (!serverUrl) return "";
+		var servers = getServersList();
+		var activeIndex = getActiveServerIndex();
+		var originalUrl = servers[activeIndex] || "";
+		return getServerUid(originalUrl);
 	}
 
 	var bwaRchConnected = false;
@@ -850,12 +965,22 @@
 			url = url + (url.indexOf("?") >= 0 ? "&" : "?") + query.join("&");
 		}
 
-		if (url.indexOf("uid=") == -1) {
-			var visitorId = Lampa.Storage.get("lampac_unic_id", "") || "guest";
-			url = Lampa.Utils.addUrlComponent(
-				url,
-				"uid=" + encodeURIComponent(visitorId)
-			);
+		var customUid = getCurrentServerUid();
+		if (customUid) {
+			if (url.indexOf("uid=") == -1) {
+				url = Lampa.Utils.addUrlComponent(
+					url,
+					"uid=" + encodeURIComponent(customUid)
+				);
+			}
+		} else {
+			if (url.indexOf("uid=") == -1) {
+				var visitorId = Lampa.Storage.get("lampac_unic_id", "") || "guest";
+				url = Lampa.Utils.addUrlComponent(
+					url,
+					"uid=" + encodeURIComponent(visitorId)
+				);
+			}
 		}
 
 		if (url.indexOf("account_email=") == -1) {
@@ -3919,9 +4044,11 @@
 			var displayName = formatServerDisplay(server);
 			var isActive = index === activeIndex;
 			var hasToken = !!getServerToken(server);
+			var hasUid = !!getServerUid(server);
 			var statusParts = [];
 			if (isActive) statusParts.push("Текущий сервер");
 			if (hasToken) statusParts.push("Токен установлен");
+			if (hasUid) statusParts.push("UID: " + getServerUid(server));
 			var statusText = statusParts.join(" • ");
 			var item = $(
 				'<div class="settings-param selector lamponline-server-item" data-server-index="' +
@@ -3970,10 +4097,10 @@
 		if (index >= 0 && index < servers.length && newUrl) {
 			var oldUrl = servers[index];
 			servers[index] = newUrl;
-			Lampa.Storage.set(STORAGE_KEY_SERVERS, servers);
-			var oldServer = Lampa.Storage.get(STORAGE_KEY_SERVER, "");
+			persistentSet(STORAGE_KEY_SERVERS, servers);
+			var oldServer = persistentGet(STORAGE_KEY_SERVER, "");
 			if (oldServer === oldUrl) {
-				Lampa.Storage.set(STORAGE_KEY_SERVER, newUrl);
+				persistentSet(STORAGE_KEY_SERVER, newUrl);
 			}
 			return true;
 		}
@@ -3986,6 +4113,7 @@
 		var isActive = index === activeIndex;
 		var serverUrl = servers[index];
 		var currentToken = getServerToken(serverUrl);
+		var currentUid = getServerUid(serverUrl);
 
 		var items = [];
 
@@ -4002,6 +4130,12 @@
 			});
 			if (currentToken)
 				items.push({ title: "Удалить токен", removeToken: true });
+
+			items.push({
+				title: currentUid ? "Изменить UID" : "Добавить UID",
+				uid: true
+			});
+			if (currentUid) items.push({ title: "Удалить UID", removeUid: true });
 		}
 		items.push({
 			title: Lampa.Lang.translate("lampac_edit_server"),
@@ -4083,6 +4217,53 @@
 							);
 						}
 					}, 10);
+				} else if (item.uid) {
+					Lampa.Select.close();
+					Lampa.Input.edit(
+						{
+							title: "UID для сервера",
+							value: currentUid,
+							placeholder: "guest",
+							nosave: true,
+							free: true,
+							nomic: true
+						},
+						function (new_value) {
+							if (new_value !== null) {
+								setServerUid(serverUrl, new_value.trim());
+								if (new_value.trim()) {
+									Lampa.Noty.show("UID сохранён");
+								}
+							}
+							if (callback) callback();
+							Lampa.Controller.toggle(enabled);
+							setTimeout(function () {
+								var serverItems = $(".lamponline-server-item.selector");
+								if (serverItems.length > 0 && index < serverItems.length) {
+									Lampa.Controller.collectionSet($(".settings"));
+									Lampa.Controller.collectionFocus(
+										serverItems[index],
+										$(".settings")[0]
+									);
+								}
+							}, 10);
+						}
+					);
+				} else if (item.removeUid) {
+					setServerUid(serverUrl, "");
+					Lampa.Noty.show("UID удалён");
+					if (callback) callback();
+					Lampa.Controller.toggle(enabled);
+					setTimeout(function () {
+						var serverItems = $(".lamponline-server-item.selector");
+						if (serverItems.length > 0 && index < serverItems.length) {
+							Lampa.Controller.collectionSet($(".settings"));
+							Lampa.Controller.collectionFocus(
+								serverItems[index],
+								$(".settings")[0]
+							);
+						}
+					}, 10);
 				} else if (item.edit) {
 					Lampa.Select.close();
 					Lampa.Input.edit(
@@ -4097,9 +4278,14 @@
 						function (new_value) {
 							if (new_value && new_value !== servers[index]) {
 								var oldToken = getServerToken(servers[index]);
+								var oldUid = getServerUid(servers[index]);
 								if (oldToken) {
 									setServerToken(servers[index], "");
 									setServerToken(new_value, oldToken);
+								}
+								if (oldUid) {
+									setServerUid(servers[index], "");
+									setServerUid(new_value, oldUid);
 								}
 								editServer(index, new_value);
 								ensureRchNws();
@@ -4120,6 +4306,7 @@
 					);
 				} else if (item.remove) {
 					setServerToken(servers[index], "");
+					setServerUid(servers[index], "");
 					removeServer(index);
 					if (callback) callback();
 					Lampa.Controller.toggle(enabled);
