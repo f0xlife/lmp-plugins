@@ -1640,7 +1640,8 @@
 					}.bind(this),
 					function (e) {
 						if (destroyed) return;
-						files.render().find(".torrent-filter").remove();
+						filter.render().find(".filter--sort").addClass("hide");
+						filter.render().find(".filter--search").addClass("hide");
 						_this.empty();
 					},
 					false,
@@ -3218,6 +3219,12 @@
 			scroll.clear();
 			scroll.append(html);
 			this.loading(false);
+			filter.render().find(".filter--sort").addClass("hide");
+			filter.render().find(".filter--search").addClass("hide");
+			var $serverBtn = filter.render().find(".filter--server");
+			if ($serverBtn.length) {
+				Lampa.Controller.collectionFocus($serverBtn[0], filter.render());
+			}
 		};
 
 		this.noConnectToServer = function (er) {
@@ -3241,6 +3248,12 @@
 			scroll.clear();
 			scroll.append(html);
 			this.loading(false);
+			filter.render().find(".filter--sort").addClass("hide");
+			filter.render().find(".filter--search").addClass("hide");
+			var $serverBtn = filter.render().find(".filter--server");
+			if ($serverBtn.length) {
+				Lampa.Controller.collectionFocus($serverBtn[0], filter.render());
+			}
 		};
 
 		this.doesNotAnswer = function (er) {
@@ -3306,6 +3319,8 @@
 			}
 			return last;
 		}
+
+		this._lampacFilter = filter;
 
 		this.start = function () {
 			if (Lampa.Activity.active().activity !== this.activity) return;
@@ -4363,10 +4378,11 @@
 		);
 	}
 
-	function openServerSelect(callback) {
+	function openServerSelect(callback, onBackOverride) {
 		var servers = getServersList();
 		var activeIndex = getActiveServerIndex();
 		var items = [];
+		var skipOnBack = false;
 
 		servers.forEach(function (server, index) {
 			items.push({
@@ -4387,10 +4403,18 @@
 			title: Lampa.Lang.translate("lampac_select_server"),
 			items: items,
 			onBack: function () {
-				Lampa.Controller.toggle(enabled);
+				if (skipOnBack) {
+					return;
+				}
+				if (onBackOverride) {
+					onBackOverride();
+				} else {
+					Lampa.Controller.toggle(enabled);
+				}
 			},
 			onSelect: function (item) {
 				if (item.add) {
+					skipOnBack = true;
 					Lampa.Select.close();
 					openServerInput(function (new_value) {
 						if (callback) callback();
@@ -4412,7 +4436,7 @@
 							}
 						],
 						onBack: function () {
-							openServerSelect(callback);
+							openServerSelect(callback, onBackOverride);
 						},
 						onSelect: function (a) {
 							if (a.edit) {
@@ -4432,13 +4456,13 @@
 											ensureRchNws();
 										}
 										if (callback) callback();
-										openServerSelect(callback);
+										openServerSelect(callback, onBackOverride);
 									}
 								);
 							} else if (a.remove) {
 								removeServer(item.index);
 								if (callback) callback();
-								openServerSelect(callback);
+								openServerSelect(callback, onBackOverride);
 							}
 						}
 					});
@@ -4446,15 +4470,19 @@
 					setActiveServerIndex(item.index);
 					ensureRchNws();
 					if (callback) callback();
-					Lampa.Controller.toggle(enabled);
+					if (onBackOverride) {
+						onBackOverride();
+					} else {
+						Lampa.Controller.toggle(enabled);
+					}
 					Lampa.Activity.replace();
 				}
 			}
 		});
 	}
 
-	function openServerMenu(callback) {
-		openServerSelect(callback);
+	function openServerMenu(callback, onBackOverride) {
+		openServerSelect(callback, onBackOverride);
 	}
 
 	function checkServerAvailability(serverUrl, callback) {
@@ -4740,31 +4768,55 @@
 			}
 
 			var $sourceBtn = $(".simple-button--filter.filter--sort");
-
-			if ($sourceBtn.length !== 1 || $sourceBtn.hasClass("hide")) {
-				return;
-			}
-
-			if ($(".selectbox-item[data-lamponline-source]").length > 0) {
-				return;
-			}
-
 			var $serverBtn = $(".simple-button--filter.filter--server");
 
-			var $selectBoxItem = Lampa.Template.get("selectbox_item", {
-				title: Lampa.Lang.translate("settings_rest_source"),
-				subtitle: $("div", $sourceBtn).text()
-			});
+			var sourceVisible =
+				$sourceBtn.length === 1 && !$sourceBtn.hasClass("hide");
+			var serverVisible = $serverBtn.length === 1;
 
-			$selectBoxItem.attr("data-lamponline-source", "true");
+			if (!sourceVisible && !serverVisible) {
+				return;
+			}
 
-			$selectBoxItem.on("hover:enter", function () {
-				$sourceBtn.trigger("hover:enter");
-			});
+			if (
+				$(".selectbox-item[data-lamponline-source]").length > 0 ||
+				$(".selectbox-item[data-lamponline-server]").length > 0
+			) {
+				return;
+			}
 
-			$(".selectbox-item").first().after($selectBoxItem);
+			if (sourceVisible) {
+				var $selectBoxItem = Lampa.Template.get("selectbox_item", {
+					title: Lampa.Lang.translate("settings_rest_source"),
+					subtitle: $("div", $sourceBtn).text()
+				});
 
-			if ($serverBtn.length === 1 && !$serverBtn.hasClass("hide")) {
+				$selectBoxItem.attr("data-lamponline-source", "true");
+
+				$selectBoxItem.on("hover:enter", function () {
+					Lampa.Select.close();
+					var active = Lampa.Activity.active();
+					var filterRef =
+						active &&
+						active.activity &&
+						active.activity.component &&
+						active.activity.component._lampacFilter;
+					if (filterRef && filterRef.show) {
+						var originalOnBack = filterRef.onBack;
+						filterRef.onBack = function () {
+							filterRef.onBack = originalOnBack;
+							filterRef.show(Lampa.Lang.translate("title_filter"), "filter");
+						};
+						filterRef.show(Lampa.Lang.translate("filter_sorted"), "sort");
+					} else {
+						$sourceBtn.trigger("hover:enter");
+					}
+				});
+
+				$(".selectbox-item").first().after($selectBoxItem);
+			}
+
+			if (serverVisible) {
 				var $serverSelectBoxItem = Lampa.Template.get("selectbox_item", {
 					title: Lampa.Lang.translate("lampac_server_short"),
 					subtitle: $("div", $serverBtn).text()
@@ -4774,10 +4826,35 @@
 
 				$serverSelectBoxItem.on("hover:enter", function () {
 					Lampa.Select.close();
-					$serverBtn.trigger("hover:enter");
+					var active = Lampa.Activity.active();
+					var filterRef =
+						active &&
+						active.activity &&
+						active.activity.component &&
+						active.activity.component._lampacFilter;
+					openServerMenu(
+						function () {
+							$serverSelectBoxItem
+								.find(".selectbox-item__subtitle")
+								.text($("div", $serverBtn).text());
+						},
+						function () {
+							if (filterRef && filterRef.show) {
+								filterRef.show(Lampa.Lang.translate("title_filter"), "filter");
+							} else {
+								Lampa.Controller.toggle("content");
+							}
+						}
+					);
 				});
 
-				$(".selectbox-item").first().after($serverSelectBoxItem);
+				var $firstItem = $(".selectbox-item").first();
+				if ($firstItem.length) {
+					$firstItem.after($serverSelectBoxItem);
+				} else {
+					var $scrollBody = $("body > .selectbox").find(".scroll__body");
+					$scrollBody.prepend($serverSelectBoxItem);
+				}
 			}
 
 			Lampa.Controller.collectionSet(
