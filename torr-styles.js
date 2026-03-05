@@ -1,36 +1,25 @@
 (function () {
 	"use strict";
+	const HIGH_SEEDS = 20;
+	const HIGH_SEEDS_COLOR = "#8cff99";
+
+	const HIGH_BITRATE = 50;
+	const HIGH_BITRATE_COLOR = "#f98888";
 
 	var PLUGIN_ID = "torrent_styles_mod";
 	var PLUGIN_NAME = "Torrent Styles MOD";
 
 	var STYLES = {
 		".torrent-item__seeds span.high-seeds": {
-			color: "#00b300",
+			color: `${HIGH_SEEDS_COLOR}`,
 			"font-weight": "bold"
 		},
 
 		".torrent-item__bitrate span.high-bitrate": {
-			color: "#b30000",
+			color: `${HIGH_BITRATE_COLOR}`,
 			"font-weight": "bold"
 		},
-
-		".torrent-item.selector.focus": {
-			"box-shadow": "0 0 0 0.3em #1aff00"
-		},
-
-		".torrent-serial.selector.focus": {
-			"box-shadow": "0 0 0 0.25em #1aff00"
-		},
-
-		".torrent-file.selector.focus": {
-			"box-shadow": "0 0 0 0.25em #1aff00"
-		},
-
-		".torrent-item.focus::after": {
-			border: "none"
-		},
-
+		
 		".scroll__body": {
 			margin: "5px"
 		}
@@ -65,7 +54,7 @@
 				.querySelectorAll(".torrent-item__seeds span")
 				.forEach(function (span) {
 					var value = parseInt(span.textContent, 10) || 0;
-					if (value > 10) span.classList.add("high-seeds");
+					if (value > HIGH_SEEDS) span.classList.add("high-seeds");
 					else span.classList.remove("high-seeds");
 				});
 
@@ -73,7 +62,7 @@
 				.querySelectorAll(".torrent-item__bitrate span")
 				.forEach(function (span) {
 					var value = parseFloat(span.textContent) || 0;
-					if (value > 50) span.classList.add("high-bitrate");
+					if (value > HIGH_BITRATE) span.classList.add("high-bitrate");
 					else span.classList.remove("high-bitrate");
 				});
 		} catch (e) {
