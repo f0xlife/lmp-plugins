@@ -11,12 +11,12 @@
 
 	var STYLES = {
 		".torrent-item__seeds span.high-seeds": {
-			color: `${HIGH_SEEDS_COLOR}`,
+			color: `"${HIGH_SEEDS_COLOR}"`,
 			"font-weight": "bold"
 		},
 
 		".torrent-item__bitrate span.high-bitrate": {
-			color: `${HIGH_BITRATE_COLOR}`,
+			color: `"${HIGH_BITRATE_COLOR}"`,
 			"font-weight": "bold"
 		},
 		
@@ -100,7 +100,7 @@
 				Lampa.Manifest.plugins[PLUGIN_ID] = {
 					type: "other",
 					name: PLUGIN_NAME,
-					version: "1.0.0",
+					version: "1.0.1",
 					description: "Дополнительные стили для карточек торрентов."
 				};
 			}
